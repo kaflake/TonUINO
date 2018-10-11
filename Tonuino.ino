@@ -154,6 +154,9 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 
+#define INITIAL_VOLUME 10		/* Initial volume at Startup */
+#define MAX_VOLUME 20	/* Maximum allowed volume */
+
 #define buttonPause A0
 #define buttonUp A1
 #define buttonDown A2
@@ -191,7 +194,13 @@ void setup() {
 
   // DFPlayer Mini initialisieren
   mp3.begin();
-  mp3.setVolume(15);
+  mp3.setVolume(INITIAL_VOLUME);
+  Serial.print(F("Set INITIAL_VOLUME "));
+  Serial.println(mp3StartVolume);
+
+  Serial.print(F("Set MAX_VOLUME "));
+  Serial.print(MAX_VOLUME);
+  Serial.println(F(" of 30"));
 
   // NFC Leser initialisieren
   SPI.begin();        // Init SPI bus
@@ -246,8 +255,12 @@ void loop() {
     }
 
     if (upButton.pressedFor(LONG_PRESS)) {
-      Serial.println(F("Volume Up"));
-      mp3.increaseVolume();
+      uint8_t mp3CurrentVolume = mp3.getVolume();
+      if(mp3CurrentVolume < MAX_VOLUME) {
+        Serial.print(F("Volume Up to "));
+        Serial.println(mp3CurrentVolume + 1);
+        mp3.increaseVolume();
+      }
       ignoreUpButton = true;
     } else if (upButton.wasReleased()) {
       if (!ignoreUpButton)
@@ -257,7 +270,11 @@ void loop() {
     }
 
     if (downButton.pressedFor(LONG_PRESS)) {
-      Serial.println(F("Volume Down"));
+      uint8_t mp3CurrentVolume = mp3.getVolume();
+      if(mp3CurrentVolume > 0) {
+          Serial.print(F("Volume Down to "));
+          Serial.println(mp3CurrentVolume - 1);
+      }
       mp3.decreaseVolume();
       ignoreDownButton = true;
     } else if (downButton.wasReleased()) {
