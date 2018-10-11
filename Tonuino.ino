@@ -196,7 +196,7 @@ void setup() {
   mp3.begin();
   mp3.setVolume(INITIAL_VOLUME);
   Serial.print(F("Set INITIAL_VOLUME "));
-  Serial.println(mp3StartVolume);
+  Serial.println(INITIAL_VOLUME);
 
   Serial.print(F("Set MAX_VOLUME "));
   Serial.print(MAX_VOLUME);
