@@ -183,6 +183,7 @@ void setup() {
 
   Serial.println(F("TonUINO Version 2.0"));
   Serial.println(F("(c) Thorsten Voß"));
+  Serial.println(F("Modified by kaflake"));
 
   // Knöpfe mit PullUp
   pinMode(buttonPause, INPUT_PULLUP);
