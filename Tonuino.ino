@@ -1,4 +1,4 @@
-#define STATUSLED
+// #define STATUSLED
 
 #include <DFMiniMp3.h>
 #include <EEPROM.h>
@@ -275,11 +275,10 @@ void setup() {
 }
 
 void loop() {
-  #if defined(STATUSLED)
-    fadeStatusLed(isPlaying());
-  #endif
-
   do {
+    #if defined(STATUSLED)
+    fadeStatusLed(isPlaying());
+    #endif
     mp3.loop();
     // Buttons werden nun über JS_Button gehandelt, dadurch kann jede Taste
     // doppelt belegt werden
