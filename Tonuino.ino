@@ -1,3 +1,5 @@
+#define STATUSLED
+
 #include <DFMiniMp3.h>
 #include <EEPROM.h>
 #include <JC_Button.h>
@@ -164,6 +166,7 @@ MFRC522::StatusCode status;
 #define buttonUp A1
 #define buttonDown A2
 #define busyPin 4
+#define statusLedPin 6 // pin used for status led
 
 #define LONG_PRESS 1000
 
@@ -175,6 +178,43 @@ bool ignoreUpButton = false;
 bool ignoreDownButton = false;
 
 uint8_t numberOfCards = 0;
+
+#if defined(STATUSLED)
+// fade in/out status led while beeing idle, during playback set to full brightness
+void fadeStatusLed(bool isPlaying) {
+  static bool statusLedDirection = false;
+  static int16_t statusLedValue = 255;
+  static uint64_t statusLedOldMillis;
+
+  // TonUINO is playing, set status led to full brightness
+  if (isPlaying) {
+    statusLedValue = 255;
+    digitalWrite(statusLedPin, true);
+  }
+  // TonUINO is not playing, fade status led in/out
+  else {
+    uint64_t statusLedNewMillis = millis();
+    if (statusLedNewMillis - statusLedOldMillis >= 100) {
+      statusLedOldMillis = statusLedNewMillis;
+      if (statusLedDirection) {
+        statusLedValue += 10;
+        if (statusLedValue >= 255) {
+          statusLedValue = 255;
+          statusLedDirection = !statusLedDirection;
+        }
+      }
+      else {
+        statusLedValue -= 10;
+        if (statusLedValue <= 0) {
+          statusLedValue = 0;
+          statusLedDirection = !statusLedDirection;
+        }
+      }
+      analogWrite(statusLedPin, statusLedValue);
+    }
+  }
+}
+#endif
 
 bool isPlaying() { return !digitalRead(busyPin); }
 
@@ -192,6 +232,12 @@ void setup() {
   pinMode(buttonPause, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
+
+  #if defined(STATUSLED)
+    Serial.println(F("init led"));
+    pinMode(statusLedPin, OUTPUT);
+    digitalWrite(statusLedPin, HIGH);
+  #endif
 
   // Busy Pin
   pinMode(busyPin, INPUT);
@@ -228,6 +274,10 @@ void setup() {
 }
 
 void loop() {
+  #if defined(STATUSLED)
+    fadeStatusLed(isPlaying());
+  #endif
+
   do {
     mp3.loop();
     // Buttons werden nun über JS_Button gehandelt, dadurch kann jede Taste
