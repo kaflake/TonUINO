@@ -169,6 +169,7 @@ MFRC522::StatusCode status;
 #define statusLedPin 6 // pin used for status led
 
 #define LONG_PRESS 1000
+#define VERY_LONG_PRESS 15000
 
 Button pauseButton(buttonPause);
 Button upButton(buttonUp);
@@ -296,16 +297,19 @@ void loop() {
     } else if (pauseButton.pressedFor(LONG_PRESS) &&
                ignorePauseButton == false) {
       if (isPlaying())
+      {
         mp3.playAdvertisement(currentTrack);
-      else {
+        ignorePauseButton = true;
+      }
+      else if(pauseButton.pressedFor(VERY_LONG_PRESS)){
         knownCard = false;
         mp3.playMp3FolderTrack(800);
         Serial.println(F("Karte resetten..."));
         resetCard();
         mfrc522.PICC_HaltA();
         mfrc522.PCD_StopCrypto1();
+        ignorePauseButton = true;
       }
-      ignorePauseButton = true;
     }
 
     if (upButton.pressedFor(LONG_PRESS)) {
