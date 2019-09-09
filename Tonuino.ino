@@ -655,6 +655,7 @@ MFRC522::StatusCode status;
 #endif
 
 #define LONG_PRESS 1000
+#define VERY_LONG_PRESS 5000
 
 Button pauseButton(buttonPause);
 Button upButton(buttonUp);
@@ -707,8 +708,8 @@ void fadeStatusLed(bool isPlaying) {
   }
 }
 #endif
-/// Funktionen für den Standby Timer (z.B. über Pololu-Switch oder Mosfet)
 
+/// Funktionen für den Standby Timer (z.B. über Pololu-Switch oder Mosfet)
 void setstandbyTimer() {
   Serial.println(F("=== setstandbyTimer()"));
   if (mySettings.standbyTimer != 0)
@@ -783,9 +784,9 @@ void setup() {
 
 
   #if defined(STATUSLED)
-    Serial.println(F("init led"));
-    pinMode(statusLedPin, OUTPUT);
-    digitalWrite(statusLedPin, HIGH);
+  Serial.println(F("init led"));
+  pinMode(statusLedPin, OUTPUT);
+  digitalWrite(statusLedPin, HIGH);
   #endif
 
   // Busy Pin
@@ -1011,7 +1012,7 @@ void loop() {
     readButtons();
 
     // admin menu
-    if ((pauseButton.pressedFor(LONG_PRESS) || upButton.pressedFor(LONG_PRESS) || downButton.pressedFor(LONG_PRESS)) && pauseButton.isPressed() && upButton.isPressed() && downButton.isPressed()) {
+    if ((pauseButton.pressedFor(VERY_LONG_PRESS) || upButton.pressedFor(VERY_LONG_PRESS) || downButton.pressedFor(VERY_LONG_PRESS)) && pauseButton.isPressed() && upButton.isPressed() && downButton.isPressed()) {
       mp3.pause();
       do {
         readButtons();
