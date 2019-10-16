@@ -638,9 +638,6 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 
-#define INITIAL_VOLUME 10		/* Initial volume at Startup */
-#define MAX_VOLUME 20	/* Maximum allowed volume */
-
 #define buttonPause A0
 #define buttonUp A1
 #define buttonDown A2
