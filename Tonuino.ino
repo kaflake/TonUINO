@@ -1,4 +1,5 @@
 // #define STATUSLED
+// #define ESP8266
 
 #include <DFMiniMp3.h>
 #include <EEPROM.h>
@@ -6,7 +7,10 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include <SoftwareSerial.h>
+
+#ifndef ESP8266
 #include <avr/sleep.h>
+#endif
 
 /*
    _____         _____ _____ _____ _____
@@ -570,11 +574,19 @@ static void nextTrack(uint16_t track) {
       Serial.println(currentTrack);
       mp3.playFolderTrack(myFolder->folder, currentTrack);
       // Fortschritt im EEPROM abspeichern
+      #ifdef ESP8266
+      EEPROM.write(myFolder->folder, currentTrack);
+      #else
       EEPROM.update(myFolder->folder, currentTrack);
+      #endif
     } else {
       //      mp3.sleep();  // Je nach Modul kommt es nicht mehr zurück aus dem Sleep!
       // Fortschritt zurück setzen
+      #ifdef ESP8266
+      EEPROM.write(myFolder->folder, 1);
+      #else
       EEPROM.update(myFolder->folder, 1);
+      #endif
       setstandbyTimer();
     }
   }
@@ -619,7 +631,11 @@ static void previousTrack() {
     }
     mp3.playFolderTrack(myFolder->folder, currentTrack);
     // Fortschritt im EEPROM abspeichern
+    #ifdef ESP8266
+    EEPROM.write(myFolder->folder, currentTrack);
+    #else
     EEPROM.update(myFolder->folder, currentTrack);
+    #endif
   }
   delay(1000);
 }
@@ -635,13 +651,23 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 
+#ifdef ESP8266
+#define buttonPause 25
+#define buttonUp 26
+#define buttonDown 27
+#define busyPin 4
+#define statusLedPin 6
+#define shutdownPin 7
+#define openAnalogPin 28 // TODO gucken ob das da so geht
+#else
 #define buttonPause A0
 #define buttonUp A1
 #define buttonDown A2
 #define busyPin 4
-#define statusLedPin 6 // pin used for status led
+#define statusLedPin 6
 #define shutdownPin 7
 #define openAnalogPin A7
+#endif    
 
 #ifdef FIVEBUTTONS
 #define buttonFourPin A3
@@ -730,10 +756,14 @@ void checkStandbyAtMillis() {
     mfrc522.PCD_AntennaOff();
     mfrc522.PCD_SoftPowerDown();
     mp3.sleep();
-
+    
+    #ifdef ESP8266
+    ESP.deepSleep(0);
+    #else
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();  // Disable interrupts
     sleep_mode();
+    #endif    
   }
 }
 
@@ -798,7 +828,7 @@ void setup() {
   delay(2000);
   volume = mySettings.initVolume;
   mp3.setVolume(volume);
-  mp3.setEq(mySettings.eq - 1);
+  mp3.setEq(DfMp3_Eq(mySettings.eq - 1));
   // Fix für das Problem mit dem Timeout (ist jetzt in Upstream daher nicht mehr nötig!)
   //mySoftwareSerial.setTimeout(10000);
 
@@ -827,7 +857,11 @@ void setup() {
       digitalRead(buttonDown) == LOW) {
     Serial.println(F("Reset -> EEPROM wird gelöscht"));
     for (int i = 0; i < EEPROM.length(); i++) {
+      #ifdef ESP8266
+      EEPROM.write(i, 0);
+      #else
       EEPROM.update(i, 0);
+      #endif
     }
     loadSettingsFromFlash();
   }
@@ -1006,7 +1040,7 @@ void loop() {
     readButtons();
 
     // admin menu
-    if ((pauseButton.pressedFor(VERY_LONG_PRESS) || upButton.pressedFor(VERY_LONG_PRESS) || downButton.pressedFor(VERY_LONG_PRESS)) && pauseButton.isPressed() && upButton.isPressed() && downButton.isPressed()) {
+    if ((pauseButton.pressedFor(LONG_PRESS) || upButton.pressedFor(LONG_PRESS) || downButton.pressedFor(LONG_PRESS)) && pauseButton.isPressed() && upButton.isPressed() && downButton.isPressed()) {
       mp3.pause();
       do {
         readButtons();
@@ -1160,7 +1194,7 @@ void loop() {
   mfrc522.PCD_StopCrypto1();
 }
 
-void adminMenu(bool fromCard = false) {
+void adminMenu(bool fromCard) {
   disablestandbyTimer();
   mp3.pause();
   Serial.println(F("=== adminMenu()"));
@@ -1235,7 +1269,7 @@ void adminMenu(bool fromCard = false) {
   else if (subMenu == 5) {
     // EQ
     mySettings.eq = voiceMenu(6, 920, 920, false, false, mySettings.eq);
-    mp3.setEq(mySettings.eq - 1);
+    mp3.setEq(DfMp3_Eq(mySettings.eq - 1));
   }
   else if (subMenu == 6) {
     // create modifier card
@@ -1344,7 +1378,11 @@ void adminMenu(bool fromCard = false) {
   else if (subMenu == 11) {
     Serial.println(F("Reset -> EEPROM wird gelöscht"));
     for (int i = 0; i < EEPROM.length(); i++) {
+      #ifdef ESP8266
+      EEPROM.write(i, 0);
+      #else
       EEPROM.update(i, 0);
+      #endif
     }
     resetSettings();
     mp3.playMp3FolderTrack(999);
@@ -1359,7 +1397,7 @@ void adminMenu(bool fromCard = false) {
       mySettings.adminMenuLocked = 1;
     }
     else if (temp == 3) {
-      int8_t pin[4];
+      uint8_t pin[4];
       mp3.playMp3FolderTrack(991);
       if (askCode(pin)) {
         memcpy(mySettings.adminMenuPin, pin, 4);
@@ -1392,7 +1430,7 @@ bool askCode(uint8_t *code) {
 }
 
 uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
-                  bool preview = false, int previewFromFolder = 0, int defaultValue = 0, bool exitWithLongPress = false) {
+                  bool preview, int previewFromFolder, int defaultValue, bool exitWithLongPress) {
   uint8_t returnValue = defaultValue;
   if (startMessage != 0)
     mp3.playMp3FolderTrack(startMessage);
