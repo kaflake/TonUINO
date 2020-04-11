@@ -147,6 +147,9 @@ void writeSettingsToFlash() {
   Serial.println(F("=== writeSettingsToFlash()"));
   int address = sizeof(myFolder->folder) * 100;
   EEPROM.put(address, mySettings);
+  #ifdef ESP8266
+  EEPROM.commit();
+  #endif
 }
 
 void resetSettings() {
@@ -576,6 +579,7 @@ static void nextTrack(uint16_t track) {
       // Fortschritt im EEPROM abspeichern
       #ifdef ESP8266
       EEPROM.write(myFolder->folder, currentTrack);
+      EEPROM.commit();
       #else
       EEPROM.update(myFolder->folder, currentTrack);
       #endif
@@ -584,6 +588,7 @@ static void nextTrack(uint16_t track) {
       // Fortschritt zurück setzen
       #ifdef ESP8266
       EEPROM.write(myFolder->folder, 1);
+      EEPROM.commit();
       #else
       EEPROM.update(myFolder->folder, 1);
       #endif
@@ -633,6 +638,7 @@ static void previousTrack() {
     // Fortschritt im EEPROM abspeichern
     #ifdef ESP8266
     EEPROM.write(myFolder->folder, currentTrack);
+    EEPROM.commit();
     #else
     EEPROM.update(myFolder->folder, currentTrack);
     #endif
@@ -786,6 +792,9 @@ void waitForTrackToFinish() {
 void setup() {
 
   Serial.begin(115200); // Es gibt ein paar Debug Ausgaben über die serielle Schnittstelle
+  #ifdef ESP8266
+  EEPROM.begin(4096);
+  #endif
 
   // Wert für randomSeed() erzeugen durch das mehrfache Sammeln von rauschenden LSBs eines offenen Analogeingangs
   uint32_t ADC_LSB;
@@ -863,6 +872,9 @@ void setup() {
       EEPROM.update(i, 0);
       #endif
     }
+    #ifdef ESP8266
+    EEPROM.commit();
+    #endif
     loadSettingsFromFlash();
   }
 
@@ -1384,6 +1396,9 @@ void adminMenu(bool fromCard) {
       EEPROM.update(i, 0);
       #endif
     }
+    #ifdef ESP8266
+    EEPROM.commit();
+    #endif
     resetSettings();
     mp3.playMp3FolderTrack(999);
   }
