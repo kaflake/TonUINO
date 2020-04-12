@@ -1,14 +1,19 @@
 // #define STATUSLED
+#define ESP32
 // #define ESP8266
+ // use Button 4 and 5 for MQTT
+#define MQTTBUTTONS
 
 #include <DFMiniMp3.h>
 #include <EEPROM.h>
 #include <JC_Button.h>
 #include <MFRC522.h>
 #include <SPI.h>
+#ifndef ESP32
 #include <SoftwareSerial.h>
+#endif
 
-#ifndef ESP8266
+#if !defined ESP8266 && !defined ESP32
 #include <avr/sleep.h>
 #endif
 
@@ -26,10 +31,26 @@
 // uncomment the below line to enable five button support
 //#define FIVEBUTTONS
 
+#ifdef ESP8266
+#undef STATUSLED
+#else
+#undef MQTTBUTTONS
+#endif
+
+#ifdef MQTTBUTTONS
+#undef FIVEBUTTONS
+#endif
+
 static const uint32_t cardCookie = 322417479;
 
 // DFPlayer Mini
+#ifdef ESP8266
+SoftwareSerial mySoftwareSerial(3, 1); // RX, TX
+#elif defined ESP32
+HardwareSerial mySoftwareSerial(2);
+#else
 SoftwareSerial mySoftwareSerial(2, 3); // RX, TX
+#endif
 uint16_t numTracksInFolder;
 uint16_t currentTrack;
 uint16_t firstTrack;
@@ -120,7 +141,11 @@ class Mp3Notify {
     }
 };
 
+#ifdef ESP32
+static DFMiniMp3<HardwareSerial, Mp3Notify> mp3(mySoftwareSerial);
+#else
 static DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mySoftwareSerial);
+#endif
 
 void shuffleQueue() {
   // Queue für die Zufallswiedergabe erstellen
@@ -580,6 +605,8 @@ static void nextTrack(uint16_t track) {
       #ifdef ESP8266
       EEPROM.write(myFolder->folder, currentTrack);
       EEPROM.commit();
+      #elif defined ESP32
+      EEPROM.write(myFolder->folder, currentTrack);
       #else
       EEPROM.update(myFolder->folder, currentTrack);
       #endif
@@ -589,6 +616,8 @@ static void nextTrack(uint16_t track) {
       #ifdef ESP8266
       EEPROM.write(myFolder->folder, 1);
       EEPROM.commit();
+      #elif defined ESP32
+      EEPROM.write(myFolder->folder, 1);
       #else
       EEPROM.update(myFolder->folder, 1);
       #endif
@@ -639,6 +668,8 @@ static void previousTrack() {
     #ifdef ESP8266
     EEPROM.write(myFolder->folder, currentTrack);
     EEPROM.commit();
+    #elif defined ESP32
+    EEPROM.write(myFolder->folder, currentTrack);
     #else
     EEPROM.update(myFolder->folder, currentTrack);
     #endif
@@ -647,8 +678,13 @@ static void previousTrack() {
 }
 
 // MFRC522
+#ifdef ESP8266
+#define RST_PIN D3
+#define SS_PIN D4 
+#else
 #define RST_PIN 9                 // Configurable, see typical pin layout above
 #define SS_PIN 10                 // Configurable, see typical pin layout above
+#endif
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522
 MFRC522::MIFARE_Key key;
 bool successRead;
@@ -657,14 +693,31 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 
-#ifdef ESP8266
-#define buttonPause 25
-#define buttonUp 26
-#define buttonDown 27
+#ifdef ESP8266 || ESP32
+#define buttonPause D0
+#define buttonUp D1
+#define buttonDown D2
+#define busyPin D8
+#define openAnalogPin A0 // TODO gucken ob das da so geht
+
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
+#define buttonFourPin 9
+#define buttonFivePin 10
+#endif
+
+#elif defined ESP32
+// achtung nur dummys
+#define buttonPause 1
+#define buttonUp 2
+#define buttonDown 3
 #define busyPin 4
-#define statusLedPin 6
-#define shutdownPin 7
-#define openAnalogPin 28 // TODO gucken ob das da so geht
+#define openAnalogPin 5
+
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
+#define buttonFourPin 6
+#define buttonFivePin 7
+#endif
+
 #else
 #define buttonPause A0
 #define buttonUp A1
@@ -673,12 +726,12 @@ MFRC522::StatusCode status;
 #define statusLedPin 6
 #define shutdownPin 7
 #define openAnalogPin A7
-#endif    
-
 #ifdef FIVEBUTTONS
 #define buttonFourPin A3
 #define buttonFivePin A4
 #endif
+
+#endif    
 
 #define LONG_PRESS 1000
 #define VERY_LONG_PRESS 5000
@@ -686,14 +739,14 @@ MFRC522::StatusCode status;
 Button pauseButton(buttonPause);
 Button upButton(buttonUp);
 Button downButton(buttonDown);
-#ifdef FIVEBUTTONS
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
 Button buttonFour(buttonFourPin);
 Button buttonFive(buttonFivePin);
 #endif
 bool ignorePauseButton = false;
 bool ignoreUpButton = false;
 bool ignoreDownButton = false;
-#ifdef FIVEBUTTONS
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
 bool ignoreButtonFour = false;
 bool ignoreButtonFive = false;
 #endif
@@ -753,9 +806,12 @@ void disablestandbyTimer() {
 void checkStandbyAtMillis() {
   if (sleepAtMillis != 0 && millis() > sleepAtMillis) {
     Serial.println(F("=== power off!"));
+
+    #if !defined ESP8266 && !defined ESP32
     // enter sleep state
     digitalWrite(shutdownPin, HIGH);
     delay(500);
+    #endif ESP8266
 
     // http://discourse.voss.earth/t/intenso-s10000-powerbank-automatische-abschaltung-software-only/805
     // powerdown to 27mA (powerbank switches off after 30-60s)
@@ -763,7 +819,7 @@ void checkStandbyAtMillis() {
     mfrc522.PCD_SoftPowerDown();
     mp3.sleep();
     
-    #ifdef ESP8266
+    #if defined ESP8266 || defined ESP32
     ESP.deepSleep(0);
     #else
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -792,6 +848,9 @@ void waitForTrackToFinish() {
 void setup() {
 
   Serial.begin(115200); // Es gibt ein paar Debug Ausgaben über die serielle Schnittstelle
+  #ifdef ESP32
+  mySoftwareSerial.begin(9600, SERIAL_8N1, 16, 17);  // speed, type, RX, TX
+  #endif
   #ifdef ESP8266
   EEPROM.begin(4096);
   #endif
@@ -853,12 +912,15 @@ void setup() {
   pinMode(buttonPause, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
-#ifdef FIVEBUTTONS
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
   pinMode(buttonFourPin, INPUT_PULLUP);
   pinMode(buttonFivePin, INPUT_PULLUP);
 #endif
+
+#if !defined ESP8266 && !defined ESP32
   pinMode(shutdownPin, OUTPUT);
   digitalWrite(shutdownPin, LOW);
+#endif
 
 
   // RESET --- ALLE DREI KNÖPFE BEIM STARTEN GEDRÜCKT HALTEN -> alle EINSTELLUNGEN werden gelöscht
@@ -866,7 +928,7 @@ void setup() {
       digitalRead(buttonDown) == LOW) {
     Serial.println(F("Reset -> EEPROM wird gelöscht"));
     for (int i = 0; i < EEPROM.length(); i++) {
-      #ifdef ESP8266
+      #if defined ESP8266 || defined ESP32
       EEPROM.write(i, 0);
       #else
       EEPROM.update(i, 0);
@@ -887,7 +949,7 @@ void readButtons() {
   pauseButton.read();
   upButton.read();
   downButton.read();
-#ifdef FIVEBUTTONS
+#if defined MQTTBUTTONS || defined FIVEBUTTONS
   buttonFour.read();
   buttonFive.read();
 #endif
@@ -1180,6 +1242,13 @@ void loop() {
         playShortCut(2);
       }
     }
+#elif defined MQTTBUTTONS
+  if (buttonFour.wasReleased()) {
+    Serial.println('BUTTON4 pressed');
+  }
+  if (buttonFive.wasReleased()) {
+    Serial.println('BUTTON5 pressed');
+  }
 #endif
     // Ende der Buttons
   } while (!mfrc522.PICC_IsNewCardPresent());
@@ -1390,7 +1459,7 @@ void adminMenu(bool fromCard) {
   else if (subMenu == 11) {
     Serial.println(F("Reset -> EEPROM wird gelöscht"));
     for (int i = 0; i < EEPROM.length(); i++) {
-      #ifdef ESP8266
+      #if defined ESP8266 || defined ESP32
       EEPROM.write(i, 0);
       #else
       EEPROM.update(i, 0);
